@@ -22,3 +22,9 @@ bash <(curl -L -s https://github.com/Memory2014/simpletest/raw/main/simpletest.s
 
 **HBO MAX IPv4 & IPv6 检测**
 
+
+
+### 特别鸣谢/参考
+[1-stream](https://github.com/1-stream/RegionRestrictionCheck))
+[lmc999](https://github.com/lmc999/RegionRestrictionCheck))
+
