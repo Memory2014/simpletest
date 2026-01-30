@@ -1,5 +1,5 @@
-# SimpleRegionRestrictionCheck
-### A simple bash script to check if your VPS's IP
+# SimpleRegionCheck
+### A simple bash script to check if your VPS's IP is supports Disney+ / Netflix / HBO Max ...      
 
 ### 支持OS
 
