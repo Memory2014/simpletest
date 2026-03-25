@@ -1044,6 +1044,8 @@ function SetLanguage() {
 
 clear
 
+SetLanguage
+
 function ScriptTitle() {
     if [[ "$language" == "e" ]]; then
         echo -e " [Platform Region Test]"
@@ -1076,8 +1078,6 @@ Start
 
 
 function RunScript() {
-
-    SetLanguage
 
     if [[ -n "${num}" ]]; then
         if [[ "$num" -eq 1 ]]; then
