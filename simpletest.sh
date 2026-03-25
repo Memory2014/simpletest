@@ -838,6 +838,47 @@ function Test_Copilot() {
     fi
 }
 
+
+function Test_Claude() {
+    # 根据之前的语言设置定义提示词
+    if [[ "$language" == "e" ]]; then
+        local msg_testing="Checking Claude (Anthropic) Availability..."
+        local msg_available="Available"
+        local msg_unavailable="Unavailable (Regional Restriction)"
+        local msg_failed="Connection Failed"
+    else
+        local msg_testing="正在检测 Claude (Anthropic) 可用性..."
+        local msg_available="可用"
+        local msg_unavailable="不可用 (地区限制)"
+        local msg_failed="连接失败"
+    fi
+
+    #echo -n -e " Claude (Anthropic):\t\t\c"
+    
+    # 使用 curl 检测，设置 5 秒超时，发送到合规性检查接口
+    # -L 追踪重定向，-s 静默模式，-I 只获取响应头
+    local auth_check=$(curl -sL -m 5 -I https://compliance.anthropic.com/ | grep -i "http/")
+
+    if [[ -z "$auth_check" ]]; then
+        # 如果完全没有响应，可能是网络不通或 DNS 被阻断
+        #echo -e "\033[0;31m$msg_failed\033[0m"
+		echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Red}Yes (${msg_failed^^})${Font_Suffix}\n"
+		
+    elif [[ "$auth_check" == *"200"* ]] || [[ "$auth_check" == *"301"* ]] || [[ "$auth_check" == *"302"* ]]; then
+        # 如果返回 200 或正常的跳转，通常代表该 IP 在允许范围内
+        #echo -e "\033[0;32m$msg_available\033[0m"
+		echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Green}Yes (${msg_available^^})${Font_Suffix}\n"
+    elif [[ "$auth_check" == *"403"* ]]; then
+        # 403 Forbidden 是 Claude 经典的地区封锁状态码
+        #echo -e "\033[0;31m$msg_unavailable\033[0m"
+		echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Red}Yes (${msg_unavailable^^})${Font_Suffix}\n"
+    else
+        # 其他异常状态码
+        #echo -e "\033[0;33m$auth_check\033[0m"
+		echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Red}Yes (${auth_check^^})${Font_Suffix}\n"
+    fi
+}
+
 function echo_Result() {
     for((i=0;i<${#array[@]};i++))
     do
@@ -880,6 +921,7 @@ function AI_UnlockTest() {
 	Test_Gemini_location "$1"
     Test_ChatGPT "$1"
     Test_Sora "$1"
+	Test_Claude  "$1"
     Test_Copilot "$1"
     echo "======================================="
 }
