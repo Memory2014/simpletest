@@ -819,7 +819,7 @@ function Test_Gemini_location() {
         return
     fi
     local region=$(echo "$tmp" | grep K4WWud | jq .[0][2] | grep -Eo '\[\[\\"(.*)\\",\\"S' )
-    echo -n -e "\r Google Gemini Location:\t\t${Font_Yellow}${region:4:-6}${Font_Suffix}\n"
+    echo -n -e "\r Google Gemini Location:\t\t${Font_Green}${region:4:-6}${Font_Suffix}\n"
 }
 
 function Test_Copilot() {
