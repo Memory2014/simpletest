@@ -1022,33 +1022,25 @@ function Goodbye() {
 }
 
 
-func SetLanguage() {
-    echo -e "${GREEN}Please select your language / 请选择语言:${NC}"
-    echo "1) English"
-    echo "2) 中文"
+function SetLanguage() {
+    echo "Please select your language / 请选择语言:"
+    echo "1) English (e)"
+    echo "2) 中文 (c)"
+    read -p "Enter number [1-2, default: 2]: " lang_input
 
-# 读取用户输入
-   read -p "Enter number [1-2]: " lang_choice
-
-   case $lang_choice in
-      1)
-          echo "You selected English."
-          export LANG=en_US.UTF-8
-        
-          ;;
-      2)
-         echo "你选择了中文。"
-         export LANG=zh_CN.UTF-8
-       
-         ;;
-      *)
-         echo "Invalid input, defaulting to English."
-         export LANG=en_US.UTF-8
-         ;;
-   esac
-
-   echo "Current Language: $LANG"
- }
+    case $lang_input in
+        1)
+            language="e"
+            ;;
+        2)
+            language="c"
+            ;;
+        *)
+            language="e"
+            ;;
+    esac
+    clear 
+}
 
 clear
 
