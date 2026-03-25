@@ -1024,12 +1024,12 @@ function Goodbye() {
 
 function SetLanguage() {
     echo "Please select your language / 请选择语言:"
-    echo "1) English (e)"
-    echo "2) 中文 (c)"
-    read -p "Enter number [1-2, default: 2]: " lang_input
+    echo "1 English"
+    echo "2 中文"
+    read -p "Enter number [1-2, default: 1]: " nx
 
-    case $lang_input in
-        1)
+    case $nx in
+        1|"")
             language="e"
             ;;
         2)
@@ -1039,7 +1039,6 @@ function SetLanguage() {
             language="e"
             ;;
     esac
-    clear 
 }
 
 clear
