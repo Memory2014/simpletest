@@ -841,43 +841,53 @@ function Test_Copilot() {
 
 function Test_Claude() {
 
-   local msg_testing msg_available msg_unavailable msg_failed
+   local msg_testing msg_available msg_unavailable msg_failed msg_limited
     if [[ "$language" == "e" ]]; then
-        msg_testing="Checking Claude (Anthropic) Availability..."
         msg_available="Available"
         msg_unavailable="Unavailable (Regional Restriction)"
         msg_failed="Connection Failed"
+        msg_limited="Cloudflare Block/Challenge"
     else
-        msg_testing="正在检测 Claude (Anthropic) 可用性..."
         msg_available="可用"
         msg_unavailable="不可用 (地区限制)"
         msg_failed="连接失败"
+        msg_limited="被防火墙拦截 (WAF/Challenge)"
     fi
 	
-    # -w "%{http_code}" 只获取状态码，--max-time 5 设置超时
-    # 这里访问 claude.ai 或 compliance 接口
-    local url="https://claude.ai/login"
-    local response=$(curl -sL -m 5 -o /dev/null -w "%{http_code}" "$url")
+    # 获取完整响应内容和状态码
+    # --max-time 10 稍微放宽时间，因为读取正文比只读头部慢一点
+    local tmp_file=$(mktemp)
+    local http_code=$(curl -sL -m 10 "https://claude.ai/login" \
+        -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+        -o "$tmp_file" -w "%{http_code}")
 
-    # 逻辑判断
-    case "$response" in
-        200)
-            # 状态 200 通常代表允许访问
-            echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Green}${msg_available}${Font_Suffix}\n"
-            ;;
-        403|451)
-            # 403 是拒绝，451 是由于法律原因不可用（常见的地区封锁）
+    if [[ "$http_code" == "200" ]]; then
+        echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Green}${msg_available}${Font_Suffix}\n"
+    
+    elif [[ "$http_code" == "403" ]] || [[ "$http_code" == "451" ]]; then
+        # 读取正文内容进行深度检测
+        local content=$(cat "$tmp_file")
+        
+        if [[ "$content" == *"App is not available"* ]] || [[ "$content" == *"unsupported_country"* ]]; then
+            # 明确的地区不支持关键词
             echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Red}${msg_unavailable}${Font_Suffix}\n"
-            ;;
-        000)
-            # curl 无法连接（超时或被阻断）
-            echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Red}${msg_failed}${Font_Suffix}\n"
-            ;;
-        *)
-            # 其他情况（如 503, 404 等）
-            echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Yellow}${msg_failed} ($response)${Font_Suffix}\n"
-            ;;
-    esac
+        elif [[ "$content" == *"just a moment"* ]] || [[ "$content" == *"cloudflare"* ]]; then
+            # 包含 Cloudflare 特征但没说不支持，通常是真人校验或 IP 被标记
+            echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Yellow}${msg_limited}${Font_Suffix}\n"
+        else
+            # 其他类型的 403
+            echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Red}${msg_unavailable} ($http_code)${Font_Suffix}\n"
+        fi
+        
+    elif [[ "$http_code" == "000" ]]; then
+        echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Red}${msg_failed}${Font_Suffix}\n"
+    else
+        echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Yellow}${msg_failed} (HTTP $http_code)${Font_Suffix}\n"
+    fi
+
+    # 删除临时文件
+    rm -f "$tmp_file"
+	
 }
 
 function echo_Result() {
