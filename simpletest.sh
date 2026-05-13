@@ -840,43 +840,44 @@ function Test_Copilot() {
 
 
 function Test_Claude() {
-    # 根据之前的语言设置定义提示词
+
+   local msg_testing msg_available msg_unavailable msg_failed
     if [[ "$language" == "e" ]]; then
-        local msg_testing="Checking Claude (Anthropic) Availability..."
-        local msg_available="Available"
-        local msg_unavailable="Unavailable (Regional Restriction)"
-        local msg_failed="Connection Failed"
+        msg_testing="Checking Claude (Anthropic) Availability..."
+        msg_available="Available"
+        msg_unavailable="Unavailable (Regional Restriction)"
+        msg_failed="Connection Failed"
     else
-        local msg_testing="正在检测 Claude (Anthropic) 可用性..."
-        local msg_available="可用"
-        local msg_unavailable="不可用 (地区限制)"
-        local msg_failed="连接失败"
+        msg_testing="正在检测 Claude (Anthropic) 可用性..."
+        msg_available="可用"
+        msg_unavailable="不可用 (地区限制)"
+        msg_failed="连接失败"
     fi
+	
+    # -w "%{http_code}" 只获取状态码，--max-time 5 设置超时
+    # 这里访问 claude.ai 或 compliance 接口
+    local url="https://claude.ai/login"
+    local response=$(curl -sL -m 5 -o /dev/null -w "%{http_code}" "$url")
 
-    #echo -n -e " Claude (Anthropic):\t\t\c"
-    
-    # 使用 curl 检测，设置 5 秒超时，发送到合规性检查接口
-    # -L 追踪重定向，-s 静默模式，-I 只获取响应头
-    local auth_check=$(curl -sL -m 5 -I https://compliance.anthropic.com/ | grep -i "http/")
-
-    if [[ -z "$auth_check" ]]; then
-        # 如果完全没有响应，可能是网络不通或 DNS 被阻断
-        #echo -e "\033[0;31m$msg_failed\033[0m"
-		echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Red}Yes (${msg_failed^^})${Font_Suffix}\n"
-		
-    elif [[ "$auth_check" == *"200"* ]] || [[ "$auth_check" == *"301"* ]] || [[ "$auth_check" == *"302"* ]]; then
-        # 如果返回 200 或正常的跳转，通常代表该 IP 在允许范围内
-        #echo -e "\033[0;32m$msg_available\033[0m"
-		echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Green}Yes (${msg_available^^})${Font_Suffix}\n"
-    elif [[ "$auth_check" == *"403"* ]]; then
-        # 403 Forbidden 是 Claude 经典的地区封锁状态码
-        #echo -e "\033[0;31m$msg_unavailable\033[0m"
-		echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Red}Yes (${msg_unavailable^^})${Font_Suffix}\n"
-    else
-        # 其他异常状态码
-        #echo -e "\033[0;33m$auth_check\033[0m"
-		echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Red}Yes (${auth_check^^})${Font_Suffix}\n"
-    fi
+    # 逻辑判断
+    case "$response" in
+        200)
+            # 状态 200 通常代表允许访问
+            echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Green}${msg_available}${Font_Suffix}\n"
+            ;;
+        403|451)
+            # 403 是拒绝，451 是由于法律原因不可用（常见的地区封锁）
+            echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Red}${msg_unavailable}${Font_Suffix}\n"
+            ;;
+        000)
+            # curl 无法连接（超时或被阻断）
+            echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Red}${msg_failed}${Font_Suffix}\n"
+            ;;
+        *)
+            # 其他情况（如 503, 404 等）
+            echo -n -e "\r Claude (Anthropic):\t\t\t${Font_Yellow}${msg_failed} ($response)${Font_Suffix}\n"
+            ;;
+    esac
 }
 
 function echo_Result() {
