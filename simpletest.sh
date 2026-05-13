@@ -838,9 +838,14 @@ function Test_Copilot() {
 
     # 2. 提取地区代码 (兼容更多混淆格式)
     # 尝试从各种可能的变量名中提取：RevIpCC, country, region 等
-    local region=$(echo "$tmp" | grep -oP '(?<="RevIpCC":")[^"]+' || echo "$tmp" | grep -oP '(?<="country":")[^"]+')
-    [[ -z "$region" ]] && region="Unknown"
+    local region=$(echo "$tmp" | grep -oE '"(RevIpCC|country|Region)":"[A-Z]{2}"' | cut -d'"' -f4 | head -n1)
+    
+    # 兜底：如果正则没抓到，尝试暴力截取
+    if [[ -z "$region" ]]; then
+        region=$(echo "$tmp" | grep -o 'Region:[^,]*' | cut -d: -f2 | tr -d '"' | xargs)
+    fi
 
+    [[ -z "$region" ]] && region="UNKNOWN"
     # 3. 检测服务可用性 (访问轻量级的配置端点)
     # 相比具体聊天接口，sydney/stachat 或 config 接口更稳定
     local check_api=$(curl $curlArgs -${1} --user-agent "${UA_Browser}" -sL --max-time 10 \
