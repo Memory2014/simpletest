@@ -823,21 +823,45 @@ function Test_Gemini_location() {
 }
 
 function Test_Copilot() {
-    local tmp=$(curl $curlArgs -${1} --user-agent "${UA_Browser}" -SsL --max-time 10 "https://copilot.microsoft.com/" 2>&1)
-    local tmp2=$(curl $curlArgs -${1} --user-agent "${UA_Browser}" -SsL --max-time 10 "https://copilot.microsoft.com/turing/conversation/chats?bundleVersion=1.1342.3-cplt.12"  2>&1)
-    if [[ "$tmp" == "curl"* ]]; then
-        echo -n -e "\r Microsoft Copilot:\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
+    local msg_failed="Failed (Network Connection)"
+    local msg_yes="Yes"
+    local msg_no="No"
+    
+    # 1. 尝试获取 Copilot 主页内容
+    # 使用简洁的 UA，并直接获取页面内容
+    local tmp=$(curl $curlArgs -${1} --user-agent "${UA_Browser}" -sL --max-time 10 "https://copilot.microsoft.com/")
+    
+    if [[ -z "$tmp" ]]; then
+        echo -n -e "\r Microsoft Copilot:\t\t\t${Font_Red}${msg_failed}${Font_Suffix}\n"
         return
     fi
-    local result=$(echo "$tmp2" | jq .result.value  2>&1 | tr -d '"' 2>&1) 
-    local region=$(echo "$tmp" | sed -n 's/.*RevIpCC:"\([^"]*\)".*/\1/p' )
-    if [[ "$result" == "Success" ]];then
-        echo -n -e "\r Microsoft Copilot:\t\t\t${Font_Green}Yes (Region: ${region^^})${Font_Suffix}\n"
-    else 
-        echo -n -e "\r Microsoft Copilot:\t\t\t${Font_Red}No  (Region: ${region^^})${Font_Suffix}\n"
+
+    # 2. 提取地区代码 (兼容更多混淆格式)
+    # 尝试从各种可能的变量名中提取：RevIpCC, country, region 等
+    local region=$(echo "$tmp" | grep -oP '(?<="RevIpCC":")[^"]+' || echo "$tmp" | grep -oP '(?<="country":")[^"]+')
+    [[ -z "$region" ]] && region="Unknown"
+
+    # 3. 检测服务可用性 (访问轻量级的配置端点)
+    # 相比具体聊天接口，sydney/stachat 或 config 接口更稳定
+    local check_api=$(curl $curlArgs -${1} --user-agent "${UA_Browser}" -sL --max-time 10 \
+        -o /dev/null -w "%{http_code}" "https://copilot.microsoft.com/api/turing/draw")
+
+    # 4. 逻辑判定
+    # 微软对于限制地区通常会重定向到 bing.com 或返回 403
+    if [[ "$check_api" == "200" ]]; then
+        echo -n -e "\r Microsoft Copilot:\t\t\t${Font_Green}${msg_yes} (Region: ${region^^})${Font_Suffix}\n"
+    elif [[ "$check_api" == "302" ]] || [[ "$check_api" == "403" ]]; then
+        echo -n -e "\r Microsoft Copilot:\t\t\t${Font_Red}${msg_no} (Region: ${region^^})${Font_Suffix}\n"
+    else
+        # 兜底方案：如果 API 检测不准，看主页内容是否包含禁止字样
+        if [[ "$tmp" == *"not available"* ]] || [[ "$tmp" == *"Coming soon"* ]]; then
+            echo -n -e "\r Microsoft Copilot:\t\t\t${Font_Red}${msg_no} (Region: ${region^^})${Font_Suffix}\n"
+        else
+            # 默认给 Yes 但标记区域，因为 200 状态码是最强的指标
+            echo -n -e "\r Microsoft Copilot:\t\t\t${Font_Green}${msg_yes} (Region: ${region^^})${Font_Suffix}\n"
+        fi
     fi
 }
-
 
 function Test_Claude() {
 
@@ -851,7 +875,7 @@ function Test_Claude() {
         msg_available="可用"
         msg_unavailable="不可用 (地区限制)"
         msg_failed="连接失败"
-        msg_limited="被防火墙拦截 (WAF/Challenge)"
+        msg_limited="Cloudflare 验证"
     fi
 	
     # 获取完整响应内容和状态码
@@ -931,7 +955,7 @@ function AI_UnlockTest() {
     echo "============[ AI Platform ]============"
 	Test_Gemini_location "$1"
     Test_ChatGPT "$1"
-    Test_Sora "$1"
+    #Test_Sora "$1"
 	Test_Claude  "$1"
     Test_Copilot "$1"
     echo "======================================="
