@@ -399,7 +399,7 @@ rollback() {
 update_script() {
     info "正在从 GitHub 拉取最新版本..."
     local tmp="${SCRIPT_PATH}.tmp"
-    local url="https://raw.githubusercontent.com/666shen/tcp-dashboard/main/tcp.sh"
+    local url="https://raw.githubusercontent.com/Memory2014/simpletest/main/tcp.sh"
 
     if curl -fsSL "$url" -o "$tmp"; then
         # 简单校验：确保是 bash 脚本
