@@ -1,9 +1,4 @@
 #!/bin/bash
-# ==================================================
-# TCP/UDP 网络深度调优面板 - 优化版
-# 项目地址: https://github.com/666shen/tcp-dashboard
-# 用法: bash <(curl -sL YOUR_DOMAIN) 或 t
-# ==================================================
 
 # --- 权限检查 ---
 if [ "$EUID" -ne 0 ]; then
@@ -42,8 +37,6 @@ if [[ "$0" != "$SCRIPT_PATH" && "$_" != "$SCRIPT_PATH" ]]; then
     info "正在安装脚本到本地..."
     mkdir -p /usr/local/bin
 
-    # 将自身写入本地（管道模式下用 /proc/self/fd/0 读取已传入的内容）
-    # 优先从 GitHub raw 地址获取，保证代码可审计
     REMOTE_URL="https://raw.githubusercontent.com/Memory2014/simpletest/refs/heads/main/tcp.sh"
     if curl -fsSL "$REMOTE_URL" -o "$SCRIPT_PATH" 2>/dev/null; then
         chmod +x "$SCRIPT_PATH"
