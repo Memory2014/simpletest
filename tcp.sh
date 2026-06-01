@@ -37,7 +37,7 @@ if [[ "$0" != "$SCRIPT_PATH" && "$_" != "$SCRIPT_PATH" ]]; then
     info "正在安装脚本到本地..."
     mkdir -p /usr/local/bin
 
-    REMOTE_URL="https://raw.githubusercontent.com/Memory2014/simpletest/refs/heads/main/tcp.sh"
+    REMOTE_URL="https://raw.githubusercontent.com/Memory2014/simpletest/main/tcp.sh"
     if curl -fsSL "$REMOTE_URL" -o "$SCRIPT_PATH" 2>/dev/null; then
         chmod +x "$SCRIPT_PATH"
         ok "脚本已安装至 $SCRIPT_PATH"
