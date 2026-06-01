@@ -44,7 +44,7 @@ if [[ "$0" != "$SCRIPT_PATH" && "$_" != "$SCRIPT_PATH" ]]; then
 
     # 将自身写入本地（管道模式下用 /proc/self/fd/0 读取已传入的内容）
     # 优先从 GitHub raw 地址获取，保证代码可审计
-    REMOTE_URL="https://raw.githubusercontent.com/666shen/tcp-dashboard/main/tcp.sh"
+    REMOTE_URL="https://raw.githubusercontent.com/Memory2014/simpletest/refs/heads/main/tcp.sh"
     if curl -fsSL "$REMOTE_URL" -o "$SCRIPT_PATH" 2>/dev/null; then
         chmod +x "$SCRIPT_PATH"
         ok "脚本已安装至 $SCRIPT_PATH"
