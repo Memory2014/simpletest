@@ -640,6 +640,63 @@ function Test_HBO() {
     fi
 }
 
+
+
+function Test_HBOMAX() {
+    local mode="-${1}"  # "-4" 或 "-6"
+    local mode_text="${2}"
+    
+    local curlArgs="${mode} -L --connect-timeout 10 -sS \
+    -A 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36' \
+    -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8' \
+    -H 'Accept-Language: zh-CN,zh;q=0.9,en-US;q=0.8' \
+    -H 'Origin: https://www.hbomax.com' \
+    -H 'Referer: https://www.hbomax.com/'"
+
+    if ! command -v jq &> /dev/null; then apt update && apt install jq -y || yum install jq -y; fi
+
+    if ! curl $mode -o /dev/null --connect-timeout 3 -s https://www.google.com; then
+        echo -e " HBO Max:\t\t\t${Font_Yellow}Skipped (No $mode_text Connectivity)${Font_Suffix}"
+        return
+    fi
+    
+    local raw_response=$(curl $curlArgs "https://default.any-any.prd.api.hbomax.com/v2_token?realm=bolt" 2>/dev/null)
+
+    if [[ -z "$raw_response" ]]; then
+        echo -e " HBO Max:\t\t\t\t${Font_Red}Failed (Network Error)${Font_Suffix}"
+        return
+    fi
+
+    # 1. 多重提取区域
+    local region=""
+    if echo "$raw_response" | grep -q "userCountry"; then
+        region=$(echo "$raw_response" | grep -oP '"userCountry":"[A-Z]{2}"' | head -n 1 | cut -d'"' -f4)
+    fi
+    if [[ -z "$region" ]]; then
+        region=$(echo "$raw_response" | jq -r .data.attributes.currentLocationTerritory 2>/dev/null)
+    fi
+    if [[ -z "$region" || "$region" == "null" ]]; then
+        region=$(echo "$raw_response" | grep -oP 'userCountry:\s*"[A-Z]{2}"' | head -n 1 | cut -d'"' -f2)
+    fi
+
+    # 2. 修正后的精准解锁判定逻辑
+    if [[ -n "$region" && "$region" != "null" ]]; then
+        
+        # 【核心修正点】只抓取真正的封禁/VPN挂载特征：
+        # - "unsupported-router" : 明确的机房/代理拦截路由
+        # - "geo-availability" : 跳转到区域不可用说明页
+        # - "isUserOutOfRegion": true : 被判定为服务区外
+        if echo "$raw_response" | grep -qiE "unsupported-router|geo-availability" || echo "$raw_response" | grep -q '"isUserOutOfRegion":true'; then
+            echo -e " HBO Max:\t\t\t\t${Font_Red}No (VPN Detected/Geoblocked; Region: $region)${Font_Suffix}"
+        else
+            # 排除以上强拦截特征后，只要拿到了合规的二字代码（如 SG, US），即代表节点解锁成功
+            echo -e " HBO Max:\t\t\t\t${Font_Green}Yes (Region: $region)${Font_Suffix}"
+        fi
+    else
+        echo -e " HBO Max:\t\t\t\t${Font_Red}No / Not Available${Font_Suffix}"
+    fi
+}
+
 function Test_ESPNPlus() {
     local espncookie=$(echo "$Media_Cookie" | sed -n '11p')
     local TokenContent=$(curl -${1} --user-agent "${UA_Browser}" -s --max-time 10 -X POST "https://espn.api.edge.bamgrid.com/token" -H "authorization: Bearer ZXNwbiZicm93c2VyJjEuMC4w.ptUt7QxsteaRruuPmGZFaJByOoqKvDP2a5YkInHrc7c" -d "$espncookie" 2>&1)
@@ -943,6 +1000,7 @@ function Global_UnlockTest() {
         Test_Netflix "$1"
 		Test_NetflixCDN "$1"
 		Test_PrimeVideo_Region "$1"
+		Test_HBOMAX "$1"
 		Test_HBO "$1"
 		Test_YouTube_Premium "$1"
 		Test_GooglePlay "$1"
