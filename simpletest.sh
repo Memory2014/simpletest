@@ -1022,7 +1022,6 @@ function Global_UnlockTest() {
 		Test_NetflixCDN "$1"
 		Test_PrimeVideo_Region "$1"
 		Test_HBOMAX "$1"
-		Test_HBO "$1"
 		Test_YouTube_Premium "$1"
 		Test_GooglePlay "$1"
         Test_Google "$1"
