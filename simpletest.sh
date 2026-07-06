@@ -641,59 +641,80 @@ function Test_HBO() {
 }
 
 
-
 function Test_HBOMAX() {
-    local mode="-${1}"  # "-4" 或 "-6"
+    local mode="-${1}"
     local mode_text="${2}"
-    
-    local curlArgs="${mode} -L --connect-timeout 10 -sS \
-    -A 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36' \
-    -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8' \
-    -H 'Accept-Language: zh-CN,zh;q=0.9,en-US;q=0.8' \
-    -H 'Origin: https://www.hbomax.com' \
-    -H 'Referer: https://www.hbomax.com/'"
+    local curlArgs="${mode} -L --connect-timeout 10 -sS"
 
     if ! command -v jq &> /dev/null; then apt update && apt install jq -y || yum install jq -y; fi
+
+    RAND_ID=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "afbb5daa-c327-461d-9460-d8e4b3ee4a1f")
+    RAND_ID2=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "da0cdd94-5a39-42ef-aa68-54cbc1b852c3")
 
     if ! curl $mode -o /dev/null --connect-timeout 3 -s https://www.google.com; then
         echo -e " HBO Max:\t\t\t${Font_Yellow}Skipped (No $mode_text Connectivity)${Font_Suffix}"
         return
     fi
-    
-    local raw_response=$(curl $curlArgs "https://default.any-any.prd.api.hbomax.com/v2_token?realm=bolt" 2>/dev/null)
 
-    if [[ -z "$raw_response" ]]; then
-        echo -e " HBO Max:\t\t\t\t${Font_Red}Failed (Network Error)${Font_Suffix}"
+    local COMMON_HEADERS=(
+        -H "x-device-info: dotcom-hbomax/7.6.0 (Google/Pixel 9; Android/15; ${RAND_ID}/${RAND_ID2})"
+        -H "x-disco-client: WEB:15:dotcom-hbomax:7.6.0"
+        -H "x-disco-params: realm=bolt,bid=beam,features=ar"
+        -H "x-wbd-device-consent: gpc=0"
+        -H "origin: https://www.hbomax.com"
+        -H "referer: https://www.hbomax.com/"
+    )
+
+    local cookiejar=$(mktemp)
+    curl $curlArgs "https://default.any-any.prd.api.hbomax.com/v2_token?realm=bolt" \
+    "${COMMON_HEADERS[@]}" \
+    -c "$cookiejar" -o /dev/null 2>&1
+
+    local Token=$(awk -F'\t' '$6=="st"{print $7}' "$cookiejar" | tail -1)
+
+    if [[ -z "$Token" ]]; then
+        rm -f "$cookiejar"
+        echo -e " HBO Max:\t\t\t\t${Font_Red}Failed (Token Error)${Font_Suffix}"
         return
     fi
 
-    # 1. 多重提取区域
-    local region=""
-    if echo "$raw_response" | grep -q "userCountry"; then
-        region=$(echo "$raw_response" | grep -oP '"userCountry":"[A-Z]{2}"' | head -n 1 | cut -d'"' -f4)
-    fi
-    if [[ -z "$region" ]]; then
-        region=$(echo "$raw_response" | jq -r .data.attributes.currentLocationTerritory 2>/dev/null)
-    fi
-    if [[ -z "$region" || "$region" == "null" ]]; then
-        region=$(echo "$raw_response" | grep -oP 'userCountry:\s*"[A-Z]{2}"' | head -n 1 | cut -d'"' -f2)
+    local APITemp=$(curl $curlArgs "https://default.any-any.prd.api.hbomax.com/session-context/headwaiter/v1/bootstrap" \
+    -X POST \
+    "${COMMON_HEADERS[@]}" \
+    -H 'content-type: application/json' \
+    -H "Cookie: st=${Token}" \
+    -d '{}' 2>/dev/null)
+
+    rm -f "$cookiejar"
+
+    local domain=$(echo $APITemp | jq -r .routing.domain 2>/dev/null)
+    local tenant=$(echo $APITemp | jq -r .routing.tenant 2>/dev/null)
+    local env=$(echo $APITemp | jq -r .routing.env 2>/dev/null)
+    local homeMarket=$(echo $APITemp | jq -r .routing.homeMarket 2>/dev/null)
+
+    if [[ -z "$domain" || "$domain" == "null" ]]; then
+        echo -e " HBO Max:\t\t\t\t${Font_Red}Failed (Bootstrap Error)${Font_Suffix}"
+        return
     fi
 
-    # 2. 修正后的精准解锁判定逻辑
-    if [[ -n "$region" && "$region" != "null" ]]; then
-        
-        # 【核心修正点】只抓取真正的封禁/VPN挂载特征：
-        # - "unsupported-router" : 明确的机房/代理拦截路由
-        # - "geo-availability" : 跳转到区域不可用说明页
-        # - "isUserOutOfRegion": true : 被判定为服务区外
-        if echo "$raw_response" | grep -qiE "unsupported-router|geo-availability" || echo "$raw_response" | grep -q '"isUserOutOfRegion":true'; then
-            echo -e " HBO Max:\t\t\t\t${Font_Red}No (VPN Detected/Geoblocked; Region: $region)${Font_Suffix}"
-        else
-            # 排除以上强拦截特征后，只要拿到了合规的二字代码（如 SG, US），即代表节点解锁成功
-            echo -e " HBO Max:\t\t\t\t${Font_Green}Yes (Region: $region)${Font_Suffix}"
-        fi
+    local tmpresult=$(curl $curlArgs "https://default.$tenant-$homeMarket.$env.$domain/users/me" \
+    "${COMMON_HEADERS[@]}" \
+    -H "Cookie: st=${Token}" 2>/dev/null)
+    local result=$(echo $tmpresult | jq -r .data.attributes.currentLocationTerritory 2>/dev/null)
+
+    local isVPN=$(curl $curlArgs 'https://default.any-any.prd.api.hbomax.com/any/playback/v1/playbackInfo' \
+    "${COMMON_HEADERS[@]}" \
+    -H "Cookie: st=${Token}" 2>&1)
+
+    if [ -z "$result" ] || [ "$result" == "null" ]; then
+        echo -e " HBO Max:\t\t\t\t${Font_Red}No/Not Available${Font_Suffix}"
+        return
+    fi
+
+    if [[ "$isVPN" == *"VPN"* ]]; then
+        echo -e " HBO Max:\t\t\t\t${Font_Red}No(VPN Detected; Region: $result)${Font_Suffix}"
     else
-        echo -e " HBO Max:\t\t\t\t${Font_Red}No / Not Available${Font_Suffix}"
+        echo -e " HBO Max:\t\t\t\t${Font_Green}Yes(Region: $result)${Font_Suffix}"
     fi
 }
 
