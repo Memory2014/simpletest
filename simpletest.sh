@@ -641,6 +641,41 @@ function Test_HBO() {
 }
 
 
+
+function Test_MAX() {
+    local mode="-${1}"
+    local mode_text="${2}"
+    local curlArgs="${mode} -L --connect-timeout 10 -sS -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'"
+
+    # 1. 检测网络连接
+    if ! curl $mode -o /dev/null --connect-timeout 3 -s https://www.max.com; then
+        echo -e " Max (HBO):\t\t\t${Font_Yellow}Skipped (No $mode_text Connectivity)${Font_Suffix}"
+        return
+    fi
+
+    # 2. 核心逻辑优化：改用更稳定的地区检测接口
+    # 访问 Max 的首页并抓取其区域信息，这比 API 模拟更稳定
+    local html_content=$(curl $curlArgs "https://www.max.com/" 2>/dev/null)
+    
+    # 检查是否因为 IP 被封锁或跳转
+    if [[ -z "$html_content" ]]; then
+        echo -e " Max (HBO):\t\t\t${Font_Red}Failed (Connection Blocked)${Font_Suffix}"
+        return
+    fi
+
+    # 3. 提取地区特征 (例如通过页面返回的语言或特定元数据)
+    # 提示：Max 会根据 IP 重定向到不同的国家目录，例如 /us/en, /es/es 等
+    local region_code=$(echo "$html_content" | grep -oP 'countryCode":"[A-Z]{2}"' | cut -d'"' -f3)
+
+    if [[ -n "$region_code" ]]; then
+        # 简单判断是否在支持区域 (这里仅作示例，可根据需求扩展)
+        echo -e " Max (HBO):\t\t\t${Font_Green}Yes (Region: ${region_code//\"/})${Font_Suffix}"
+    else
+        echo -e " Max (HBO):\t\t\t${Font_Red}No / Not Supported${Font_Suffix}"
+    fi
+}
+
+
 function Test_ESPNPlus() {
     local espncookie=$(echo "$Media_Cookie" | sed -n '11p')
     local TokenContent=$(curl -${1} --user-agent "${UA_Browser}" -s --max-time 10 -X POST "https://espn.api.edge.bamgrid.com/token" -H "authorization: Bearer ZXNwbiZicm93c2VyJjEuMC4w.ptUt7QxsteaRruuPmGZFaJByOoqKvDP2a5YkInHrc7c" -d "$espncookie" 2>&1)
@@ -945,6 +980,7 @@ function Global_UnlockTest() {
 		Test_NetflixCDN "$1"
 		Test_PrimeVideo_Region "$1"
 		Test_HBO "$1"
+		Test_MAX "$1"
 		Test_YouTube_Premium "$1"
 		Test_GooglePlay "$1"
         Test_Google "$1"
