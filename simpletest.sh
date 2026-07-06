@@ -640,53 +640,6 @@ function Test_HBO() {
     fi
 }
 
-
-function Test_MAX() {
-    local mode="-${1}"  # "-4" 或 "-6"
-    local mode_text="${2}"
-    # 使用全伪装的现代浏览器 User-Agent
-    local curlArgs="${mode} -L --connect-timeout 10 -sS -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'"
-    
-    if ! command -v jq &> /dev/null; then apt update && apt install jq -y || yum install jq -y; fi
-
-    # 检查基础网络
-    if ! curl $mode -o /dev/null --connect-timeout 3 -s https://www.google.com; then
-        echo -e " HBO Max:\t\t\t${Font_Yellow}Skipped (No $mode_text Connectivity)${Font_Suffix}"
-        return
-    fi
-    
-    # 1. 探测官网响应头，检查是否被 CDN 彻底阻断 (403 Forbidden)
-    local http_status=$(curl $curlArgs -o /dev/null -w "%{http_code}" "https://www.max.com/")
-    
-    if [ "$http_status" -eq 403 ] || [ "$http_status" -eq 000 ]; then
-        echo -e " HBO Max:\t\t\t\t${Font_Red}No (IP Blocked by Akamai/CDN)${Font_Suffix}"
-        return
-    fi
-
-    # 2. 抓取官网的重定向或页面元数据
-    # Max 会在页面源码中埋入 "countryCode":"US" 或类似 JSON
-    local web_content=$(curl $curlArgs "https://www.max.com/" 2>/dev/null)
-    local region=$(echo "$web_content" | grep -oP '"countryCode":"[A-Z]{2}"' | head -n 1 | cut -d'"' -f4)
-
-    # 3. 如果找不到，尝试抓取旧域名的重定向路径特征
-    if [[ -z "$region" ]]; then
-        region=$(curl $curlArgs -I "https://www.hbomax.com/" 2>/dev/null | grep -i "location:" | grep -oP '/[a-z]{2}/' | tr -d '/' | tr a-z A-Z | head -n 1)
-    fi
-
-    # 4. 判断结果
-    if [[ -n "$region" && "$region" != "null" ]]; then
-        # 简单通过页面关键词判断是否触发了系统的 VPN 警告页面
-        if [[ "$web_content" == *"unsupported-router"* || "$web_content" == *"vpn"* ]]; then
-            echo -e " HBO Max:\t\t\t\t${Font_Red}No (VPN Detected; Region: $region)${Font_Suffix}"
-        else
-            echo -e " HBO Max:\t\t\t\t${Font_Green}Yes (Region: $region)${Font_Suffix}"
-        fi
-    else
-        echo -e " HBO Max:\t\t\t\t${Font_Red}No / Not Available${Font_Suffix}"
-    fi
-}
-
-
 function Test_ESPNPlus() {
     local espncookie=$(echo "$Media_Cookie" | sed -n '11p')
     local TokenContent=$(curl -${1} --user-agent "${UA_Browser}" -s --max-time 10 -X POST "https://espn.api.edge.bamgrid.com/token" -H "authorization: Bearer ZXNwbiZicm93c2VyJjEuMC4w.ptUt7QxsteaRruuPmGZFaJByOoqKvDP2a5YkInHrc7c" -d "$espncookie" 2>&1)
@@ -991,7 +944,6 @@ function Global_UnlockTest() {
 		Test_NetflixCDN "$1"
 		Test_PrimeVideo_Region "$1"
 		Test_HBO "$1"
-		Test_MAX "$1"
 		Test_YouTube_Premium "$1"
 		Test_GooglePlay "$1"
         Test_Google "$1"
