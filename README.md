@@ -9,11 +9,11 @@
 
 ### Supported OS
 
-> ⚠️ **Note:** Disclaimer: This project is only verified to work on the latest Debian stable release. Compatibility with other operating systems is not guaranteed. If you run into issues, please ensure all required dependencies are properly installed.
+> ⚠️ Note/Disclaimer: This project is only verified to work on the latest Debian stable release. Compatibility with other operating systems is not guaranteed. If you run into issues, please ensure all required dependencies are properly installed.
 
 ## Usage
->For Ubuntu / Debian / Kali / Linux Mint,
->You'll need to update your package list first to ensure you're getting the latest version.
+>For Ubuntu / Debian / Kali / Linux Mint,You'll need to update your package list first to ensure you're getting the latest version.
+>
 >⚠️ Prerequisite: Please make sure curl is installed before running the script.
 ````bash
 sudo apt update && sudo apt install curl
