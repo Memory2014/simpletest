@@ -64,8 +64,7 @@ bash <(curl -L -s https://github.com/Memory2014/simpletest/raw/main/simpletest.s
 ##
 
 
-### 特别鸣谢/参考
-* lmc999
-* 1-stream
+## 鸣谢/参考
+* lmc999  * 1-stream
 
 
