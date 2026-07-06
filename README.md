@@ -1,4 +1,4 @@
-# SimpleRegionCheck --- Streaming Region Unlock Test/Streaming Media Geo-Restriction Unlock Test
+# LiteStreamingCheck --- Streaming Region Unlock Test/Streaming Media Geo-Restriction Unlock Test
 
 ### A simple bash script to check if your IP is supports Disney+ / Netflix / HBO Max ...   
 
