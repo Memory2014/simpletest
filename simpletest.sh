@@ -641,86 +641,48 @@ function Test_HBO() {
 }
 
 
-
 function Test_MAX() {
     local mode="-${1}"  # "-4" 或 "-6"
     local mode_text="${2}"
-    # 核心修复 1：升级 User-Agent 伪装，避免被 Akamai/Cloudflare 判定为 curl 恶意爬虫
+    # 使用全伪装的现代浏览器 User-Agent
     local curlArgs="${mode} -L --connect-timeout 10 -sS -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'"
     
     if ! command -v jq &> /dev/null; then apt update && apt install jq -y || yum install jq -y; fi
-    
-    # 生成随机设备ID
-    RAND_ID=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "afbb5daa-c327-461d-9460-d8e4b3ee4a1f")
 
-    # 检查网络连接
+    # 检查基础网络
     if ! curl $mode -o /dev/null --connect-timeout 3 -s https://www.google.com; then
         echo -e " HBO Max:\t\t\t${Font_Yellow}Skipped (No $mode_text Connectivity)${Font_Suffix}"
         return
     fi
     
-    # 核心修复 2：升级为 v2_token 接口，并强制改用 POST 方法，补全关键的 API 握手 Headers
-    local GetToken=$(curl $curlArgs -X POST "https://default.any-any.prd.api.hbomax.com/v2_token?realm=bolt&deviceId=${RAND_ID}" \
-    -H "Accept: application/json" \
-    -H "Content-Type: application/json" \
-    -H "x-device-info: beam/5.0.0 (desktop/desktop; Windows/10; ${RAND_ID}/${RAND_ID})" \
-    -H "x-disco-client: WEB:10:beam:5.2.1" \
-    -H "Origin: https://www.hbomax.com" \
-    -H "Referer: https://www.hbomax.com/" \
-    -d '{}' 2>&1)
-
-    # 验证 Token 是否成功获取
-    if [[ "$GetToken" == "curl"* ]] || [[ -z "$GetToken" ]]; then
-        echo -e " HBO Max:\t\t\t\t${Font_Red}Failed (Network Error)${Font_Suffix}"
+    # 1. 探测官网响应头，检查是否被 CDN 彻底阻断 (403 Forbidden)
+    local http_status=$(curl $curlArgs -o /dev/null -w "%{http_code}" "https://www.max.com/")
+    
+    if [ "$http_status" -eq 403 ] || [ "$http_status" -eq 000 ]; then
+        echo -e " HBO Max:\t\t\t\t${Font_Red}No (IP Blocked by Akamai/CDN)${Font_Suffix}"
         return
     fi
 
-    local Token=$(echo $GetToken | jq -r .data.attributes.token 2>/dev/null)
-    
-    # 如果接口返回了错误（例如 IP 被封锁返回 403 导致 jq 解析不到 token）
-    if [[ -z "$Token" || "$Token" == "null" ]]; then
-        echo -e " HBO Max:\t\t\t\t${Font_Red}No (API Access Denied/Blocked)${Font_Suffix}"
-        return
+    # 2. 抓取官网的重定向或页面元数据
+    # Max 会在页面源码中埋入 "countryCode":"US" 或类似 JSON
+    local web_content=$(curl $curlArgs "https://www.max.com/" 2>/dev/null)
+    local region=$(echo "$web_content" | grep -oP '"countryCode":"[A-Z]{2}"' | head -n 1 | cut -d'"' -f4)
+
+    # 3. 如果找不到，尝试抓取旧域名的重定向路径特征
+    if [[ -z "$region" ]]; then
+        region=$(curl $curlArgs -I "https://www.hbomax.com/" 2>/dev/null | grep -i "location:" | grep -oP '/[a-z]{2}/' | tr -d '/' | tr a-z A-Z | head -n 1)
     fi
 
-    # 核心修复 3：沿用路由引导逻辑，但同样强制使用 POST 请求 headwaiter
-    local APITemp=$(curl $curlArgs "https://default.any-any.prd.api.hbomax.com/session-context/headwaiter/v1/bootstrap" \
-    -X POST \
-    -H "Content-Type: application/json" \
-    -H "Cookie: st=${Token}" \
-    -d '{}' 2>/dev/null)
-    
-    local domain=$(echo $APITemp | jq -r .routing.domain 2>/dev/null)
-    local tenant=$(echo $APITemp | jq -r .routing.tenant 2>/dev/null)
-    local env=$(echo $APITemp | jq -r .routing.env 2>/dev/null)
-    local homeMarket=$(echo $APITemp | jq -r .routing.homeMarket 2>/dev/null)
-    
-    # 预防路由解析失败
-    if [[ -z "$tenant" || "$tenant" == "null" ]]; then
-        echo -e " HBO Max:\t\t\t\t${Font_Red}No (Route Bootstrap Failed)${Font_Suffix}"
-        return
-    fi
-
-    # 核心修复 4：执行区域与原生度检测
-    local tmpresult=$(curl $curlArgs "https://default.$tenant-$homeMarket.$env.$domain/users/me" -H "Cookie: st=${Token}" 2>/dev/null)
-    local result=$(echo $tmpresult | jq -r .data.attributes.currentLocationTerritory 2>/dev/null)
-    
-    # 获取当前支持的国家列表
-    local availableRegion=$(curl $curlArgs -SL "https://www.hbomax.com/" 2>/dev/null | grep -woP '"url":"/[a-z]{2}/[a-z]{2}"' | cut -f4 -d'"' | cut -f2 -d'/' | sort -n | uniq | xargs | tr a-z A-Z)
-    
-    # 检测是否触发了平台的机房 IP/VPN 屏蔽机制
-    local isVPN=$(curl $curlArgs 'https://default.any-any.prd.api.hbomax.com/any/playback/v1/playbackInfo' -H "Cookie: st=${Token}" 2>&1)
-
-    # 最终输出逻辑
-    if [[ "$availableRegion" == *"$result"* ]] && [ -n "$result" ] && [ "$result" != "null" ]; then
-        if [[ "$isVPN" == *"VPN"* ]]; then 
-            echo -e " HBO Max:\t\t\t\t${Font_Red}No (VPN Detected; Region: $result)${Font_Suffix}"
+    # 4. 判断结果
+    if [[ -n "$region" && "$region" != "null" ]]; then
+        # 简单通过页面关键词判断是否触发了系统的 VPN 警告页面
+        if [[ "$web_content" == *"unsupported-router"* || "$web_content" == *"vpn"* ]]; then
+            echo -e " HBO Max:\t\t\t\t${Font_Red}No (VPN Detected; Region: $region)${Font_Suffix}"
         else
-            echo -e " HBO Max:\t\t\t\t${Font_Green}Yes (Region: $result)${Font_Suffix}"
+            echo -e " HBO Max:\t\t\t\t${Font_Green}Yes (Region: $region)${Font_Suffix}"
         fi
     else
-        # 兜底：如果 result 获取不到，但前面没报错，尝试用备用字段或判定为不可用
-        echo -e " HBO Max:\t\t\t\t${Font_Red}No/Not Available${Font_Suffix}"
+        echo -e " HBO Max:\t\t\t\t${Font_Red}No / Not Available${Font_Suffix}"
     fi
 }
 
